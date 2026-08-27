@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$false)]
-    [string]$Targets = "skills\africa-business-email-sourcing\targets.example.csv",
+    [string]$Targets = "skills\africa-business-email-sourcing\targets_africa_business_maroc.csv",
 
     [Parameter(Mandatory=$false)]
     [string]$Out = "outputs\africa_business_emails.csv",
