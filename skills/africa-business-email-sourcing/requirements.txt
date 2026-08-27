@@ -1,0 +1,5 @@
+dnspython>=2.7.0
+email-validator>=2.2.0
+pypdf>=5.0.0
+requests>=2.32.0
+tldextract>=5.1.0
