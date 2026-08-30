@@ -1,0 +1,80 @@
+name: Moody prototype scrape
+
+on:
+  push:
+    branches:
+      - moody-prototype-scrape
+    paths:
+      - tools/moody_prototype_scrape.py
+      - .github/workflows/moody-prototype-scrape.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      MOODY_TARGET: https://moody.devconsoleconsulting.com/
+      MOODY_MAX_PAGES: '120'
+      MOODY_GRAPH_DEPTH: '2'
+      MOODY_OLLAMA_MODEL: ollama/llama3.2:1b
+      SCRAPEGRAPHAI_TELEMETRY_ENABLED: 'false'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install ScrapeGraphAI from this repository
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Install Chromium for rendered pages
+        run: |
+          playwright install --with-deps chromium
+
+      - name: Install Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          nohup ollama serve > /tmp/ollama.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          ollama pull llama3.2:1b
+
+      - name: Crawl and audit Moody prototype
+        run: |
+          python tools/moody_prototype_scrape.py
+
+      - name: Show deterministic summary
+        if: always()
+        run: |
+          if [ -f scrape_results/moody_summary.json ]; then
+            cat scrape_results/moody_summary.json
+          fi
+          if [ -f scrape_results/moody_scrapegraphai_error.txt ]; then
+            echo '--- ScrapeGraphAI semantic-pass error ---'
+            cat scrape_results/moody_scrapegraphai_error.txt
+          fi
+
+      - name: Upload scrape report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: moody-prototype-scrape-report
+          path: scrape_results/
+          if-no-files-found: warn
+          retention-days: 7
