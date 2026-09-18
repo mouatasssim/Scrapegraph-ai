@@ -1,0 +1,63 @@
+name: Moody Instagram Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile_url:
+        description: Public Instagram profile URL
+        required: true
+        default: https://www.instagram.com/moodyinternationalcertif/
+      post_limit:
+        description: Maximum number of visible posts to audit
+        required: true
+        default: "12"
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      INSTAGRAM_PROFILE_URL: ${{ inputs.profile_url }}
+      INSTAGRAM_POST_LIMIT: ${{ inputs.post_limit }}
+      SCRAPEGRAPH_MODEL: openai/gpt-4o-mini
+      AUDIT_OUTPUT_DIR: audit_output
+      SCRAPEGRAPHAI_TELEMETRY_ENABLED: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install ScrapeGraphAI from this repository
+        run: uv sync --frozen
+
+      - name: Install Playwright Chromium
+        run: uv run playwright install --with-deps chromium
+
+      - name: Check required secret
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "Missing GitHub Actions secret: OPENAI_API_KEY"
+            exit 1
+          fi
+
+      - name: Run Moody Instagram audit
+        run: uv run python examples/instagram_audit/moody_instagram_audit.py
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: moody-instagram-audit
+          path: audit_output/
+          if-no-files-found: warn
+          retention-days: 14
