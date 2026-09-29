@@ -1,0 +1,63 @@
+name: LinkedIn Recruitment Comment Leads
+
+on:
+  workflow_dispatch:
+    inputs:
+      post_url:
+        description: Public LinkedIn post URL
+        required: true
+        default: https://lnkd.in/p/eE6MmmW7
+      comment_limit:
+        description: Maximum number of visible comments to extract
+        required: true
+        default: "50"
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      LINKEDIN_POST_URL: ${{ inputs.post_url }}
+      LINKEDIN_COMMENT_LIMIT: ${{ inputs.comment_limit }}
+      SCRAPEGRAPH_MODEL: openai/gpt-4o-mini
+      LINKEDIN_OUTPUT_DIR: linkedin_recruitment_output
+      SCRAPEGRAPHAI_TELEMETRY_ENABLED: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install ScrapeGraphAI from this repository
+        run: uv sync --frozen
+
+      - name: Install Playwright Chromium
+        run: uv run playwright install --with-deps chromium
+
+      - name: Check required secret
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "Missing GitHub Actions secret: OPENAI_API_KEY"
+            exit 1
+          fi
+
+      - name: Extract public LinkedIn comments and professional data
+        run: uv run python examples/linkedin_recruitment_comments/linkedin_comment_leads.py
+
+      - name: Upload recruitment lead files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkedin-recruitment-leads
+          path: linkedin_recruitment_output/
+          if-no-files-found: warn
+          retention-days: 14
